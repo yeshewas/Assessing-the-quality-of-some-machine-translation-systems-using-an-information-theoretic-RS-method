@@ -1,0 +1,148 @@
+import lzma
+import os
+import math
+from collections import defaultdict
+from tabulate import tabulate  # Import tabulate for table formatting
+
+def compress_with_lzma(data):
+    """
+    Compresses the given data using LZMA and returns the size of the compressed data.
+    """
+    compressed_data = lzma.compress(data.encode('utf-8'))
+    return len(compressed_data)
+
+def calculate_compression_difference(training_data, test_slice):
+    """
+    Calculates the compression difference for a test slice with a given training dataset.
+    """
+    combined_data = training_data + test_slice
+    combined_size = compress_with_lzma(combined_data)
+    training_size = compress_with_lzma(training_data)
+    return combined_size - training_size
+class CramerVCalculator:
+    """Computes Cramér's V coefficient from a confusion matrix."""
+
+    @staticmethod
+    def compute(confusion_dict):
+        authors = sorted(confusion_dict.keys())
+        matrix = [
+            [confusion_dict[row].get(col, 0) for col in authors]
+            for row in authors
+        ]
+
+        n = sum(sum(row) for row in matrix)
+        rows = len(matrix)
+        cols = len(matrix[0])
+
+        row_totals = [sum(row) for row in matrix]
+        col_totals = [sum(matrix[i][j] for i in range(rows)) for j in range(cols)]
+
+        chi2 = 0.0
+        for i in range(rows):
+            for j in range(cols):
+                expected = (row_totals[i] * col_totals[j]) / n
+                if expected > 0:
+                    chi2 += (matrix[i][j] - expected) ** 2 / expected
+
+        return math.sqrt(chi2 / (n * min(rows - 1, cols - 1)))
+def classify_slices(training_data_map, test_slices):
+    """
+    Classifies each test slice to the best matching training dataset.
+    """
+    result_table = defaultdict(lambda: defaultdict(int))
+
+    for test_author, slices in test_slices.items():
+        for test_slice in slices:
+            best_match = None
+            smallest_difference = float('inf')
+
+            for train_author, training_data in training_data_map.items():
+                difference = calculate_compression_difference(training_data, test_slice)
+
+                if difference < smallest_difference:
+                    smallest_difference = difference
+                    best_match = train_author
+
+            result_table[test_author][best_match] += 1
+
+    return result_table
+
+def display_result_table(result_table):
+    """
+    Display the classification results in a tabular format using tabulate.
+    """
+    authors = list(result_table.keys())
+    headers = [""] + authors  # First column is empty for row labels
+    rows = []
+
+    for test_author in authors:
+        row = [test_author] + [result_table[test_author].get(train_author, 0) for train_author in authors]
+        rows.append(row)
+
+    print(tabulate(rows, headers=headers, tablefmt="grid"))
+
+def load_text(file_path, size_in_kb):
+    """
+    Load a specific amount of text (in kilobytes) from a file.
+    """
+    if not os.path.exists(file_path):
+        print(f"Error: File not found -> {file_path}")
+        return ""
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read(size_in_kb * 1024)  # Read size_in_kb KB
+    except Exception as e:
+        print(f"Error reading file {file_path}: {e}")
+        return ""
+
+def load_test_slices(file_path, num_slices=16, slice_size_kb=4):
+    """
+    Loads test slices from a file, splitting it into multiple parts.
+    """
+    text = load_text(file_path, num_slices * slice_size_kb)  # Load the full required text
+    slice_size = slice_size_kb * 1024  # Convert KB to bytes
+    return [text[i * slice_size:(i + 1) * slice_size] for i in range(num_slices) if i * slice_size < len(text)]
+
+if __name__ == "__main__":
+    # Paths to training and test files
+    training_files = {
+        "clude": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\AI-translator\R-E\traning\clude-b1.txt",
+        #"Google": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\Russain-english-4-translators\Traning\Google-B1-R-E.txt",
+        "Deepseek": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\AI-translator\R-E\traning\Deepseek-b1.txt",
+        "Gimini": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\AI-translator\R-E\traning\gimini-b1.txt",
+        #"Microsoft": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\Russain-english-4-translators\Traning\Microsoft-B1-R-E.txt",
+        #"GPT": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\AI-translator\R-E\traning\GPT-b2.txt",
+        # "sider": r"C:\Users\USER\Documents\professor\second-year-second-semester-report\english-amharic by computer transaltors\traning\E-A-sider-AI.txt",
+        #"lINGVANEX": r"E:\Users\USER\Documents\professor\second-year-second-semester-report\english-amharic by computer transaltors\traning\E-A-lingvanex.txt"
+
+    }
+    test_files = {
+        "clude": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\AI-translator\R-E\test\clude-b1.txt",
+        #"Google": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\Russain-english-4-translators\Test\Google-b1-R-E.txt",
+        "Deepseek": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\AI-translator\R-E\test\Deepseek-b1.txt",
+        "Gimini": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\AI-translator\R-E\test\gimini-b1.txt",
+        #"Microsoft": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\Russain-english-4-translators\Test\microsoft-B1-R-E.txt",
+        #"GPT": r"C:\Users\lulu\OneDrive - Debark University\Documents\english-amharic by computer transaltors\AI-translator\R-E\test\GPT-b2.txt",
+        # "sider": r"C:\Users\USER\Documents\professor\second-year-second-semester-report\english-amharic by computer transaltors\Test\E-A-sider.txt",
+        # "lINGVANEX": r"E:\Users\USER\Documents\professor\second-year-second-semester-report\english-amharic by computer transaltors\Test\E-A-lingvanex.txt"
+    }
+
+    # Load training data (64 kB per author)
+    training_data_map = {
+        author: load_text(file_path, 64) for author, file_path in training_files.items()
+    }
+
+    # Load test slices (16 slices per file, 4 kB each)
+    test_slices = {
+        author: load_test_slices(file_path, num_slices=64 , slice_size_kb=1) for author, file_path in test_files.items()
+    }
+
+    # Classify the test slices
+    result_table = classify_slices(training_data_map, test_slices)
+
+    # Display results as a table
+    print("\nClassification Results:")
+    display_result_table(result_table)
+    cramer_v = CramerVCalculator.compute(result_table)
+    print(f"\nCramér’s V coefficient: {cramer_v:.4f}")
